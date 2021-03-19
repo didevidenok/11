@@ -1,0 +1,258 @@
+import nfc
+import ndef
+from threading import Thread
+
+def beam(llc):
+    snep_client = nfc.snep.SnepClient(llc)
+    snep_client.put_records([ndef.UriRecord('http://nfcpy.org')])
+
+def connected(llc):
+    Thread(target=beam, args=(llc,)).start()
+    return True
+
+with nfc.ContactlessFrontend('usb') as clf:
+    clf.connect(llcp={'on-connect': connected})
+app = None #сброс в исходное состояние
+
+class ScannerAndroid(NFCBase):
+
+    name = 'NFCAndroid'
+
+    def nfc_init(self):
+        global app
+        app = App.get_running_app()
+        activity.bind(on_new_intent=self.on_new_intent)
+
+        self.j_context = context = PythonActivity.mActivity
+        self.nfc_adapter = NfcAdapter.getDefaultAdapter(context)
+        if not self.nfc_adapter:
+            return False
+
+        self.nfc_pending_intent = PendingIntent.getкActivity(context, 0,
+            Intent(context, context.getClass()).addFlags(
+                Intent.FLAG_ACTIVITY_SINGLE_TOP), 0)
+
+IntentFilter ndef = new IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED);
+ndef.addDataScheme("vnd.android.nfc");
+ndef.addDataAuthority("ext", null);
+ndef.addDataPath("/com.example:sometype", PatternMatcher.PATTERN_PREFIX);
+
+       #стройка обнаружения тегов 
+        try:
+            self.ndef_detected.addCategory(Intent.CATEGORY_DEFAULT)
+            self.ndef_detected.addDataType('*/*')
+
+            self.tech_detected.addCategory(Intent.CATEGORY_DEFAULT)
+            self.tech_detected.addDataType('*/*')
+
+            self.tag_detected.addCategory(Intent.CATEGORY_DEFAULT)
+            self.tag_detected.addDataType('*/*')
+
+            self.ndef_exchange_filters = [self.ndef_detected, self.tech_detected,
+                                          self.tag_detected]
+            except Exception as err: 
+            raise Exception(repr(err)) #вызываем исключения 
+
+        self.ndef_tech_list = [
+            ['android.nfc.tech.Ndef'],
+            ['android.nfc.tech.NfcA'],
+            ['android.nfc.tech.NfcB'],
+            ['android.nfc.tech.NfcV'],
+            ['android.nfc.tech.IsoDep'],
+            ['android.nfc.tech.MifareUltralight'],
+            ['android.nfc.tech.NdefFormattable'] ]
+        self.nfc_enable()
+        self.on_new_intent(PythonActivity.getIntent())
+        return True
+
+    def get_ndef_details(self, tag):
+        details = {}
+
+        details['uid'] = ':'.join(['{:02x}'.format(bt & 0xff) for bt in tag.getId()])
+        details['Technologies'] = tech_list = [tech.split('.')[-1] for tech in tag.getTechList()]
+        ndefTag = cast('android.nfc.tech.Ndef', Ndef.get(tag))
+
+        details['MaxSize'] = ndefTag.getMaxSize()
+       
+        details['writable'] = ndefTag.isWritable()
+        #получить подробную информацию о сообщении NDEF
+        ndefMesg = ndefTag.getCachedNdefMessage()
+        details['consumed'] = len(ndefMesg.toByteArray()) if ndefMesg else 0
+        details['Type'] = ndefTag.getType()
+
+        if not ndefMesg:
+            details['Message'] = None
+            return details
+
+        ndefrecords =  ndefMesg.getRecords()
+        length = len(ndefrecords)
+        recTypes = []
+        for record in ndefrecords:
+            recTypes.append({
+                'type': ''.join(map(chr, record.getType())),
+                'payload': ''.join(map(chr, record.getPayload()))
+                })
+
+        details['recTypes'] = recTypes
+
+        return details
+
+    def on_new_intent(self, intent):
+      
+        app = App.get_running_app()
+
+        action_list = (NfcAdapter.ACTION_TAG_DISCOVERED,
+                       NfcAdapter.ACTION_TECH_DISCOVERED,
+                       NfcAdapter.ACTION_NDEF_DISCOVERED,)
+
+        extra_tag =  intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+        if app.mode != 'write' and not extra_tag:
+            return
+        
+        tag = cast('android.nfc.Tag', extra_tag)
+
+        try:
+            details = self.get_ndef_details(tag)
+        except Exception, err:
+            app.show_info('Unknown or INVALID TAG')
+            print err
+            Clock.schedule_once(lambda dt:app._pause(), 2)
+            return
+        
+        if intent.getAction() not in action_list:
+            return
+
+        app.tag_discovered(details)
+        if app.mode == 'write':
+            self.nfc_write_tag(tag, app.data)
+
+    def nfc_disable(self):
+        self.disable_foreground_dispatch()
+
+    def nfc_enable(self):
+        self.enable_foreground_dispatch()
+
+    def create_RTDURI(self, URI):
+        if not URI:
+            URI = "https://yandex.ru/"
+        if URI.lower().startswith('http://'):
+            URI = URI[7:]
+        if BUILDVERSION >= 14:
+            rtdUriRecord = NdefRecord.createUri(JString('http://' + URI)); 
+        else:
+           
+            uriField = JString(URI).getBytes(Charset.forName("US-ASCII"))
+            payload = []
+            payload.append(0x01)
+            payload.extend(uriField)
+            rtdUriRecord = NdefRecord(
+                NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_URI, '', payload)
+        return rtdUriRecord
+
+    def create_AAR(self):
+       
+        return NdefRecord.createApplicationRecord(JString("org.kivy.kivy"))
+
+    def create_TNF_EXTERNAL(self, data):
+        
+        if BUILDVERSION >= 14:
+            domain = "com.kivy"
+            stype = "externalType"
+            extRecord = NdefRecord.createExternal(domain, stype, data)
+        else:
+            extRecord = NdefRecord(
+                NdefRecord.TNF_EXTERNAL_TYPE,
+                "com.kivy:externalType",
+                '',
+                data)
+        return extRecord
+
+    def create_ndef_message(self, *recs):
+       
+        return NdefMessage([record for record in recs if record])
+
+    def nfc_write_tag(self, tag, data):
+        '''
+        record = None
+        # if BUILDVERSION >= 14:
+        #     # if jellybean
+        #     # create Androud Application Record
+        #     record = self.create_AAR()
+        # else:
+        #     # older android versions can't  use AAR
+        #     # Create NdefRecord type: RTD_URI
+        record = self.create_RTDURI(data) 
+
+        payload = None
+        # Create the actual payload
+        payload =  self.create_TNF_EXTERNAL(data)
+
+        # create the ndef mesage
+        message = self.create_ndef_message(record, payload)
+
+        # write the actual message
+        size = len(message.toByteArray())
+
+        ndef = Ndef.get(tag)
+
+        if not ndef.isWritable():
+            return app.show_info('This tag is not writable.')
+
+        max_size = ndef.getMaxSize()
+        if size > max_size:
+            # not enough space to write date
+            app.show_info('Not enugh space on tag! Trim your data.\n'
+                          '{}/{}'.format(size, max_size))
+            return
+
+        #def delayed(ndef, message):
+        try:
+            ndef.connect()
+            ndef.writeNdefMessage(message)
+            ndef.close()
+            Clock.schedule_once(lambda dt: app.show_info('Tag written to successfully'))
+            app.mode = 'idle'
+        except Exception as err:
+            Clock.schedule_once(lambda dt: app.show_info(unicode(err)))
+            
+        # tag written successfully
+
+        #threading.Thread(target=delayed, args=(ndef, message)).start()
+
+
+    @run_on_ui_thread
+    def disable_foreground_dispatch(self):
+        '''Disable foreground dispatch when app is paused.
+        '''
+        self.nfc_adapter.disableForegroundDispatch(self.j_context)
+
+    @run_on_ui_thread
+    def enable_foreground_dispatch(self):
+        '''Start listening for new tags
+        '''
+        if app.status == 'paused':
+            return
+        self.nfc_adapter.enableForegroundDispatch(self.j_context,
+            self.nfc_pending_intent, self.ndef_exchange_filters, self.ndef_tech_list)
+
+    @run_on_ui_thread
+    def _nfc_enable_ndef_exchange(self, data):
+        ndef_record = NdefRecord(
+                NdefRecord.TNF_MIME_MEDIA,
+                'text/plain', '', data)
+        ndef_message = NdefMessage([ndef_record])
+
+        self.nfc_adapter.enableForegroundNdefPush(self.j_context, ndef_message)
+        self.nfc_adapter.enableForegroundDispatch(self.j_context,
+                self.nfc_pending_intent, self.ndef_exchange_filters, [])
+
+    @run_on_ui_thread
+    def _nfc_disable_ndef_exchange(self):
+        self.nfc_adapter.disableForegroundNdefPush(self.j_context)
+        self.nfc_adapter.disableForegroundDispatch(self.j_context)
+
+    def nfc_enable_exchange(self, data):
+        self._nfc_enable_ndef_exchange()
+
+    def nfc_disable_exchange(self):
+        self._nfc_disable_ndef_exchange()
